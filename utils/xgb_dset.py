@@ -65,7 +65,7 @@ class XgboostDataset:
         self.X_test,  self.y_test  =  df_test[self.feat_cols],  df_test[self.targ_col]
         if self.verbose:
             print('Train/valid/test split complete:')
-            print(f'\t{len(self.y_train)} rows train, \n\t{len(self.y_valid)} rows valid, \n\t{len(self.y_train)} rows test')
+            print(f'\t{len(self.y_train)} rows train, \n\t{len(self.y_valid)} rows valid, \n\t{len(self.y_test)} rows test')
 
         # encode cats for each X
         cat_mappings = fit_categorical_encoder(self.X_train)

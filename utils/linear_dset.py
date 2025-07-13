@@ -141,7 +141,7 @@ class LinearDataset:
         self.X_test,  self.y_test  =  df_test[self.feat_cols],  df_test[self.targ_col]
         if self.verbose:
             print('Train/valid/test split complete:')
-            print(f'\t{len(self.y_train)} rows train, \n\t{len(self.y_valid)} rows valid, \n\t{len(self.y_train)} rows test')
+            print(f'\t{len(self.y_train)} rows train, \n\t{len(self.y_valid)} rows valid, \n\t{len(self.y_test)} rows test')
 
         # missing values 
         # (can either: drop rows, impute from mean or mode)
