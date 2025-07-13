@@ -35,7 +35,7 @@ def temporal_row_split(df: pd.DataFrame,
 
 def train_valid_test_split( df: pd.DataFrame, 
                             split_type: str, # ['random', 'temporal']
-                            time_col=None,
+                            time_col=None, # only used if temporal splitting
                             p_train=0.8, 
                             p_valid=0.1):
     '''Splits data into 3 groups using either random or temporal splitting'''

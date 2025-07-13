@@ -1,29 +1,55 @@
 import numpy as np
+import pandas as pd
 import optuna
 import time
 from xgboost import XGBRegressor, XGBClassifier
 
-# optuna.logging.set_verbosity(optuna.logging.INFO)
-optuna.logging.set_verbosity(optuna.logging.WARNING)
+from .loss_functions import calc_log_loss, calc_rmse
 
 
 class XGBoostOptunaTuner:
-    def __init__(self, X_train, y_train, X_valid, y_valid, problem_type='regression'):
-        """
-        Parameters:
-        - problem_type: 'regression' or 'binary'
-        """
-        assert problem_type in ['regression', 'binary'], "Only 'regression' and 'binary' are supported."
+    """
+    given the dsets (train and valid), and the type of problem (regression, binary classification)
+    set up a study to tune for a set amount of time 
+    for now parameter ranges are hard encoded, this wouldn't be ideal for a true pipeline
+
+    Parameters:
+    - problem_type: 'regression' or 'binary'
+    - optuna_verbosity: set whether we want optuna to print every trial output or not
+    """
+
+    def __init__(self, 
+                 X_train: pd.DataFrame, 
+                 y_train: pd.DataFrame, 
+                 X_valid: pd.DataFrame,
+                 y_valid: pd.DataFrame, 
+                 optuna_verbosity='low', # [low, high]
+                 problem_type='regression' # [regression, binary]
+                 ):
+        # check inputs
+        assert problem_type in ['regression', 'binary'], "Unrecognized problem_type"
+        assert optuna_verbosity in ['low', 'high'], "Unrecognized optuna verbosity"
+        
+        # set verbosity
+        if optuna_verbosity=='low':
+            # pretty much no printing
+            optuna.logging.set_verbosity(optuna.logging.WARNING)
+        else:
+            # will print every trial result
+            optuna.logging.set_verbosity(optuna.logging.INFO)
+              
+
+        # store attributes
         self.X_train, self.y_train = X_train, y_train
         self.X_valid, self.y_valid = X_valid, y_valid
         self.problem_type = problem_type
 
-        # parameters that are constant across all 
+        # some parameters that are constant across all 
         self.base_params = { 
             "booster": "gbtree",
             "verbosity": 0,
             "enable_categorical": True,
-            "tree_method": "hist"
+            "tree_method": "hist" # hist required for early stopping functionality with sklearn
         }
         
         # update the objective based on problem type
@@ -31,23 +57,15 @@ class XGBoostOptunaTuner:
             self.base_params["objective"] = "reg:squarederror"
         elif self.problem_type == "binary":
             self.base_params["objective"] = "binary:logistic"
-        else:
-            raise ValueError(f"Invalid problem type: '{self.problem_type}'")
-
+        
+        # prep study
+        sampler = optuna.samplers.TPESampler(seed=42) # set a seed for the default sampler
+        self.study = optuna.create_study(direction='minimize', sampler=sampler)
         return
 
-    @staticmethod
-    def rmse(y_true, y_pred):
-        return np.sqrt(np.mean((y_true - y_pred) ** 2))
-    
-    @staticmethod
-    def log_loss(y_true, y_pred, eps=1e-15):
-        # Clip to avoid log(0)
-        y_pred = np.clip(y_pred, eps, 1 - eps)
-        return -np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
-
-
     def _objective(self, trial):
+        '''Set up objective for either regression or binary classification'''
+        
         # prep parameters
         tune_params = {
             "max_depth": trial.suggest_int("max_depth", 3, 12),
@@ -57,7 +75,7 @@ class XGBoostOptunaTuner:
             "reg_lambda": trial.suggest_float("lambda", 1e-2, 10.0, log=True),
             "min_child_weight": trial.suggest_float("min_child_weight", 3, 20),
             "n_estimators": trial.suggest_int("n_estimators", 100, 200),
-            "early_stopping_rounds":25,
+            "early_stopping_rounds":25, # stop when valid score stops improving (reg term)
         }
         params = {**self.base_params, **tune_params}
 
@@ -71,7 +89,7 @@ class XGBoostOptunaTuner:
                 verbose=False
             )
             preds = model.predict(self.X_valid)
-            return self.rmse(self.y_valid, preds)
+            return calc_rmse(self.y_valid, preds)
 
         # objective for binary classification
         elif self.problem_type == "binary":
@@ -83,29 +101,28 @@ class XGBoostOptunaTuner:
                 verbose=False
             )
             proba = model.predict_proba(self.X_valid)[:, 1]
-            return self.log_loss(self.y_valid, proba)
+            return calc_log_loss(self.y_valid, proba)
         
-    def optimize(self, total_tune_time=30, print_secs=10):
-        '''Search for a certain amount of time (as opposed to the defaul which is n_trials)'''
+    def tune_for_nsecs(self, total_tune_time=30, print_secs=10):
+        '''Search for a certain amount of time (as opposed to the defaul which is n_trials)
+        
+        This is split off from the study initiation so that we can tune longer on same study if desired'''
 
         # prep for printing
         start, last = time.time(), time.time()
 
-        # prep study
-        sampler = optuna.samplers.TPESampler(seed=42)
-        self.study = optuna.create_study(direction='minimize', sampler=sampler)
-
-        # train a new model while we're still under the alloted time
+        # tune for a certain amount of time (kind of a hack to get optuna to do this)
         while (time.time() - start) < total_tune_time:
+            # run a single trial per loop pass
             self.study.optimize(self._objective, n_trials=1)
 
-            # logic to print every 10 sec with a status update on how long its been training for
+            # make a printout of status
             now = time.time()
             if now - last > print_secs:
                 last = now
-                print(f"Elapsed: {np.round(now-start)}sec | Iteration #{len(self.study.trials)}")
-        
-        # save the study attrs
+                print(f"Elapsed: {np.round(now-start)}sec | Total Iterations: {len(self.study.trials)}")
+
+        # save new tuned params
         self.tuned_params = self.study.best_params
         self.training_params = {**self.base_params, **self.tuned_params}
         return

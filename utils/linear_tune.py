@@ -1,19 +1,13 @@
 from sklearn.linear_model import Ridge, LogisticRegression
 import numpy as np
 
-def calc_rmse(y_true, y_pred):
-    return np.sqrt(np.mean((y_true - y_pred) ** 2))
-
-def calc_log_loss(y_true, y_pred, eps=1e-15):
-    # Clip to avoid log(0)
-    y_pred = np.clip(y_pred, eps, 1 - eps)
-    return -np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
+from .loss_functions import calc_log_loss, calc_rmse
 
 def ridge_grid_search(X_train, 
                       y_train, 
                       X_valid, 
                       y_valid, 
-                      alpha_grid = np.logspace(-4, 2, 10)  # log space 10 values from 1e-4 to 1e2
+                      alpha_grid = np.logspace(-2, 2, 10)  # log space 10 values from 1e-4 to 1e2
                      ):
     best_alpha = None
     best_model = None
@@ -41,7 +35,7 @@ def logistic_ridge_grid_search(X_train,
                                y_train, 
                                X_valid, 
                                y_valid, 
-                               C_grid = np.logspace(-4, 2, 10)  # from strong regularization to weak (1e-4 to 1e2)
+                               C_grid = np.logspace(-2, 2, 10)  # from strong regularization to weak (1e-4 to 1e2)
                                ):
     ''' Note C = 1 / lambda so its inverted strength'''
 
@@ -51,7 +45,7 @@ def logistic_ridge_grid_search(X_train,
     results = []
 
     for C in C_grid:
-        model = LogisticRegression(C=C, penalty='l2', solver='liblinear')  # use liblinear for binary
+        model = LogisticRegression(C=C, penalty='l2')
         model.fit(X_train, y_train)
         probas = model.predict_proba(X_valid)[:, 1]  # keep only P(y=1)
         loss = calc_log_loss(y_valid, probas)

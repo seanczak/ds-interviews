@@ -1,7 +1,7 @@
 import pandas as pd
 
-from pandas_cat_encoder import fit_categorical_encoder, apply_categorical_encoding
-from train_test_split import train_valid_test_split
+from .pandas_cat_encoder import fit_categorical_encoder, apply_categorical_encoding
+from .train_test_split import train_valid_test_split
 
 
 class XgboostDataset:
@@ -37,7 +37,7 @@ class XgboostDataset:
     
     def prep_for_tuning(self,
                         split_type: str, # ['random', 'temporal']
-                        time_col=None,
+                        time_col=None, # only used if temporal splitting
                         p_train=0.8, 
                         p_valid=0.1):
         '''3 steps
@@ -63,16 +63,24 @@ class XgboostDataset:
         self.X_train, self.y_train = df_train[self.feat_cols], df_train[self.targ_col]
         self.X_valid, self.y_valid = df_valid[self.feat_cols], df_valid[self.targ_col]
         self.X_test,  self.y_test  =  df_test[self.feat_cols],  df_test[self.targ_col]
+        if self.verbose:
+            print('Train/valid/test split complete:')
+            print(f'\t{len(self.y_train)} rows train, \n\t{len(self.y_valid)} rows valid, \n\t{len(self.y_train)} rows test')
 
         # encode cats for each X
         cat_mappings = fit_categorical_encoder(self.X_train)
         self.X_train = apply_categorical_encoding(self.X_train, cat_mappings)
         self.X_valid = apply_categorical_encoding(self.X_valid, cat_mappings)
         self.X_test  = apply_categorical_encoding(self.X_test,  cat_mappings)
+        if self.verbose:
+            print(f'\n{len(cat_mappings)} categorical variables encoded')
         return
     
     def prep_for_final_training(self):
         '''combine the train and valid and save to self'''
         self.X_trainvalid = pd.concat([self.X_train, self.X_valid])
         self.y_trainvalid = pd.concat([self.y_train, self.y_valid])
+        if self.verbose:
+            print('\nTrain and valid set combined for final training:')
+            print(f'\t{len(self.y_trainvalid)} rows in "trainvalid" dset')
         return

@@ -1,9 +1,7 @@
 import pandas as pd
-from pandas.api.types import is_numeric_dtype
 from sklearn.preprocessing import StandardScaler
 
-from pandas_cat_encoder import fit_categorical_encoder, apply_categorical_encoding
-from train_test_split import train_valid_test_split
+from .train_test_split import train_valid_test_split
 
 class LinearDataset:
     """
@@ -71,6 +69,9 @@ class LinearDataset:
         X_valid_enc = X_valid_enc.reindex(columns=self.encoded_cols, fill_value=0)
         X_test_enc = X_test_enc.reindex(columns=self.encoded_cols, fill_value=0)
 
+        if self.verbose: 
+            print(f'\n{len(self.cat_cols)} categorical variables encoded')
+
         return X_train_enc, X_valid_enc, X_test_enc
     
     def standardize_numeric_features(self): 
@@ -81,30 +82,36 @@ class LinearDataset:
         self.X_train[self.num_cols] = scaler.fit_transform(self.X_train[self.num_cols])
         self.X_valid[self.num_cols] = scaler.transform(self.X_valid[self.num_cols])
         self.X_test[self.num_cols] = scaler.transform(self.X_test[self.num_cols])
+
+        if self.verbose: 
+            print(f'\n{len(self.num_cols)} numeric variables standardized')
         return
     
     def impute_missing_values(self):
-        ''' imputation values from training set '''
+        ''' imputation values from training set (save the values) '''
+
+        if self.verbose: 
+            print('\nImputing missing values with mean and mode')
 
         # Impute numeric features with train-set means
-        numeric_means = self.X_train[self.num_cols].mean()
+        self.num_means = self.X_train[self.num_cols].mean()
 
-        self.X_train.loc[:, self.num_cols] = self.X_train[self.num_cols].fillna(numeric_means)
-        self.X_valid.loc[:, self.num_cols] = self.X_valid[self.num_cols].fillna(numeric_means)
-        self.X_test.loc[:, self.num_cols]  = self.X_test[self.num_cols].fillna(numeric_means)
+        self.X_train.loc[:, self.num_cols] = self.X_train[self.num_cols].fillna(self.num_means)
+        self.X_valid.loc[:, self.num_cols] = self.X_valid[self.num_cols].fillna(self.num_means)
+        self.X_test.loc[:, self.num_cols]  = self.X_test[self.num_cols].fillna(self.num_means)
 
         # Impute categorical features with train-set modes
-        categorical_modes = self.X_train[self.cat_cols].mode().iloc[0]
+        self.cat_modes = self.X_train[self.cat_cols].mode().iloc[0]
 
-        self.X_train.loc[:, self.cat_cols] = self.X_train[self.cat_cols].fillna(categorical_modes)
-        self.X_valid.loc[:, self.cat_cols] = self.X_valid[self.cat_cols].fillna(categorical_modes)
-        self.X_test.loc[:, self.cat_cols]  = self.X_test[self.cat_cols].fillna(categorical_modes)
+        self.X_train.loc[:, self.cat_cols] = self.X_train[self.cat_cols].fillna(self.cat_modes)
+        self.X_valid.loc[:, self.cat_cols] = self.X_valid[self.cat_cols].fillna(self.cat_modes)
+        self.X_test.loc[:, self.cat_cols]  = self.X_test[self.cat_cols].fillna(self.cat_modes)
 
         return
     
     def prep_for_tuning(self,
                         split_type:str, # ['random', 'temporal']
-                        time_col=None,
+                        time_col=None, # only used if temporal splitting
                         p_train=0.8, 
                         p_valid=0.1,
                         missing_val_impute=True,
@@ -132,6 +139,9 @@ class LinearDataset:
         self.X_train, self.y_train = df_train[self.feat_cols], df_train[self.targ_col]
         self.X_valid, self.y_valid = df_valid[self.feat_cols], df_valid[self.targ_col]
         self.X_test,  self.y_test  =  df_test[self.feat_cols],  df_test[self.targ_col]
+        if self.verbose:
+            print('Train/valid/test split complete:')
+            print(f'\t{len(self.y_train)} rows train, \n\t{len(self.y_valid)} rows valid, \n\t{len(self.y_train)} rows test')
 
         # missing values 
         # (can either: drop rows, impute from mean or mode)
@@ -140,6 +150,7 @@ class LinearDataset:
         # note I could also drop a full feature OR drop some rows before putting into here (like if a target was missing)
         # and impute the rest
         else:
+            if self.verbose: print('\nDropping missing values rows')
             self.X_train = self.X_train.dropna()
             self.X_valid = self.X_valid.dropna()
             self.X_test  =  self.X_test.dropna()
@@ -161,4 +172,7 @@ class LinearDataset:
         '''combine the train and valid and save to self'''
         self.X_trainvalid = pd.concat([self.X_train, self.X_valid])
         self.y_trainvalid = pd.concat([self.y_train, self.y_valid])
+        if self.verbose:
+            print('\nTrain and valid set combined for final training:')
+            print(f'\t{len(self.y_trainvalid)} rows in "trainvalid" dset')
         return
