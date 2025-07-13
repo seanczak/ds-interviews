@@ -10,7 +10,9 @@ def fit_categorical_encoder(X_train: pd.DataFrame) -> dict:
     return cat_mappings # {col:categories}
 
 def apply_categorical_encoding(X: pd.DataFrame, cat_mappings: dict) -> pd.DataFrame:
-    """ apply categorical mapping from training to a feature set X """
+    """ apply categorical mapping from training to a feature set X 
+    NOTE -- if a new level shows up it will be treated as a Nan - which xgb can handle
+    """
     X = X.copy()
     for col, dtype in cat_mappings.items():
         X[col] = pd.Categorical(X[col], categories=cat_mappings[col])

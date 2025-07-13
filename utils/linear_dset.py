@@ -169,7 +169,9 @@ class LinearDataset:
 
     
     def prep_for_final_training(self):
-        '''combine the train and valid and save to self'''
+        '''combine the train and valid and save to self
+           -- honestly realizing I should probably re encode the categoricals and such
+              but for now lets move on'''
         self.X_trainvalid = pd.concat([self.X_train, self.X_valid])
         self.y_trainvalid = pd.concat([self.y_train, self.y_valid])
         if self.verbose:
