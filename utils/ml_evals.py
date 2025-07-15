@@ -73,9 +73,6 @@ class ContinuousEvals:
             }
         )
 
-    def assemble_results_df(
-        self,
-        index_name: str = None,
-    ):
+    def assemble_results_df(self):
         """single row df"""
         return pd.DataFrame(self.assemble_results_series()).T

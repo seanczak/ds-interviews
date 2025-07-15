@@ -134,6 +134,11 @@ class LinearDataset:
             df_train = df_train.set_index(self.id_cols)
             df_valid = df_valid.set_index(self.id_cols)
             df_test  =  df_test.set_index(self.id_cols)
+            
+        # save the dfs (useful to have the originals even though we break into X,y below)
+        self.df_train = df_train
+        self.df_valid = df_valid
+        self.df_test  =  df_test
         
         # Extract X and y
         self.X_train, self.y_train = df_train[self.feat_cols], df_train[self.targ_col]
@@ -177,4 +182,7 @@ class LinearDataset:
         if self.verbose:
             print('\nTrain and valid set combined for final training:')
             print(f'\t{len(self.y_trainvalid)} rows in "trainvalid" dset')
+
+        # save the df
+        self.df_trainvalid = pd.concat([self.df_train, self.df_valid])
         return
